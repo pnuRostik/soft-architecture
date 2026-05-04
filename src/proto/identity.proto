@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package identity;
+
+service IdentityService {
+  rpc ValidateToken (ValidateTokenRequest) returns (ValidateTokenResponse);
+}
+
+message ValidateTokenRequest {
+  string access_token = 1;
+}
+
+message ValidateTokenResponse {
+  bool valid = 1;
+  int32 user_id = 2;
+  string role = 3;
+}

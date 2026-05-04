@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id Int @id @default(autoincrement())
+
+  first_name String? @db.VarChar(64)
+  last_name  String? @db.VarChar(64)
+
+  email         String  @unique @db.VarChar(120)
+  password_hash String? @db.VarChar(256)
+
+  email_verification_hash String? @db.VarChar(256)
+
+  role Role @default(USER)
+
+  is_activated Boolean @default(false)
+
+  auth_provider String @default("local") @db.VarChar(20)
+
+  locality_id Int?
+
+  longitude Float?
+  latitude  Float?
+
+  created_at DateTime @default(now())
+
+  sessions Session[]
+
+  @@index([email])
+  @@index([id])
+}
+
+model Session {
+  id Int @id @default(autoincrement())
+
+  user_id Int
+  user    User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  refresh_token String @unique @db.VarChar(512)
+
+  ip_address String? @db.VarChar(45)
+  device     String? @db.VarChar(64)
+  os         String? @db.VarChar(64)
+  browser    String? @db.VarChar(64)
+
+  created_at DateTime @default(now())
+  expires_at DateTime
+
+  @@index([user_id])
+}

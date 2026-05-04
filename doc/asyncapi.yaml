@@ -1,0 +1,101 @@
+asyncapi: 3.1.0
+info:
+  title: Identity & Access Management Service - Event API
+  version: 1.0.0
+  description: |
+    This service manages user authentication and profiles. 
+    It emits events to Kafka whenever a user is created or updated, 
+    allowing downstream services to synchronize user data.
+  contact:
+    name: Platform Identity Team
+
+servers:
+  kafka:
+    host: kafka.internal:9092
+    protocol: kafka
+    description: Internal Kafka message broker for identity events.
+
+channels:
+  userEvents:
+    address: 'identity.iam.user.events'
+    description: Topic for all user-related lifecycle events.
+    messages:
+      userCreated:
+        $ref: '#/components/messages/UserCreated'
+      userUpdated:
+        $ref: '#/components/messages/UserUpdated'
+
+operations:
+  sendUserCreated:
+    action: send
+    channel:
+      $ref: '#/channels/userEvents'
+    messages:
+      - $ref: '#/channels/userEvents/messages/userCreated'
+    summary: Publish event when a new user registers
+    description: |
+      Emitted by the Auth Controller or External Auth Controller 
+      immediately after a new user record is successfully committed to the PostgreSQL database.
+
+  sendUserUpdated:
+    action: send
+    channel:
+      $ref: '#/channels/userEvents'
+    messages:
+      - $ref: '#/channels/userEvents/messages/userUpdated'
+    summary: Publish event when user profile or role changes
+    description: |
+      Emitted by the Profile Controller (for profile changes) 
+      or Admin Controller (for role changes).
+
+components:
+  messages:
+    UserCreated:
+      name: UserCreated
+      title: User Created Event
+      payload:
+        $ref: '#/components/schemas/UserPayload'
+    
+    UserUpdated:
+      name: UserUpdated
+      title: User Updated Event
+      payload:
+        $ref: '#/components/schemas/UserPayload'
+
+  schemas:
+    UserPayload:
+      type: object
+      required:
+        - id
+        - email
+        - role
+      properties:
+        id:
+          type: integer
+          description: Unique identifier of the user.
+        firstname:
+          type: string
+          maxLength: 64
+        lastname:
+          type: string
+          maxLength: 64
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [user, admin]
+        auth_provider:
+          type: string
+          enum: [local, google, facebook]
+        is_activated:
+          type: boolean
+        locality_id:
+          type: integer
+        longitude:
+          type: number
+        latitude:
+          type: number
+        updated_at:
+          type: string
+          format: date-time

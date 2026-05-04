@@ -1,0 +1,304 @@
+openapi: 3.1.0
+info:
+  title: Identity & Access Management - REST API
+  version: 1.0.0
+  description: |
+    Core API for the Identity Platform: registration, email verification, JWT sessions with refresh rotation,
+    profile and active sessions, and administrative role changes.
+
+    **Authentication:** Protected routes require `Authorization: Bearer <access_token>`.
+
+    **Refresh token:** Returned in the JSON body on login/refresh and also set as an HttpOnly cookie named `refreshToken`
+    (path `/`). Clients may send the refresh token in the JSON body or rely on the cookie for `POST /auth/refresh` and `POST /auth/logout`.
+
+    **Client metadata:** The service records `ip_address` (from `X-Forwarded-For` / connection), and best-effort `device`, `os`, and `browser`
+    from `User-Agent` and `Sec-CH-UA-*` headers when present.
+
+servers:
+  - url: https://api.identity.com/v1
+    description: Production environment
+  - url: http://localhost:3000
+    description: Local development
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id: { type: integer, example: 101 }
+        firstname: { type: string, maxLength: 64, example: "John" }
+        lastname: { type: string, maxLength: 64, example: "Doe" }
+        email: { type: string, format: email, example: "john.doe@example.com" }
+        role: { type: string, enum: [user, admin], example: "user" }
+        is_activated: { type: boolean, example: true }
+        auth_provider: { type: string, example: "local" }
+        locality_id: { type: integer, example: 5 }
+        longitude: { type: number, format: float, example: 30.5234 }
+        latitude: { type: number, format: float, example: 50.4501 }
+        created_at: { type: string, format: date-time }
+
+    Session:
+      type: object
+      properties:
+        id: { type: integer }
+        ip_address: { type: string, nullable: true, example: "192.168.1.1" }
+        device: { type: string, nullable: true, example: "Desktop" }
+        os: { type: string, nullable: true, example: "Linux" }
+        browser: { type: string, nullable: true, example: "Mozilla/5.0..." }
+        created_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken: { type: string, description: Short-lived JWT access token }
+        refreshToken:
+          { type: string, description: Opaque refresh token; also issued as HttpOnly cookie `refreshToken` }
+
+    RegisterResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        email: { type: string, format: email }
+        message: { type: string }
+
+paths:
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, firstname, lastname]
+              properties:
+                firstname: { type: string, maxLength: 64 }
+                lastname: { type: string, maxLength: 64 }
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                locality_id: { type: integer }
+                longitude: { type: number }
+                latitude: { type: number }
+      responses:
+        '201':
+          description: User created; verify email before login.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegisterResponse' }
+        '409':
+          description: Email already registered
+
+  /auth/verify-email:
+    get:
+      tags: [Authentication]
+      summary: Verify user email
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Email successfully verified
+        '400':
+          description: Invalid or missing token
+
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Authenticate user (requires verified email)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: Access and refresh tokens issued; refresh cookie set
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '401':
+          description: Invalid credentials
+        '403':
+          description: Email not verified
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh access token (refresh token rotation)
+      description: |
+        Accepts `refreshToken` in the JSON body and/or the `refreshToken` HttpOnly cookie.
+        On success, the previous session row is removed and a new session is created (rotated refresh token).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken: { type: string, description: Optional if cookie is sent }
+      responses:
+        '200':
+          description: New token pair; refresh cookie updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '401':
+          description: Missing, invalid, or expired refresh token
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Log out current device (invalidate refresh session)
+      description: |
+        Deletes the `Session` row matching the refresh token from the body or cookie.
+        If `Authorization: Bearer` is sent, the refresh token must belong to that user.
+        Clears the refresh HttpOnly cookie when applicable.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '200':
+          description: Session removed for this device
+        '400':
+          description: Refresh token missing
+        '401':
+          description: Invalid access token (when Bearer sent) or unknown refresh session
+        '403':
+          description: Refresh token does not match authenticated user
+
+  /auth/reset-password-request:
+    post:
+      tags: [Authentication]
+      summary: Request password reset link
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '501':
+          description: Not implemented (no reset token storage in current schema)
+
+  /auth/reset-password:
+    post:
+      tags: [Authentication]
+      summary: Set new password via token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, newPassword]
+              properties:
+                token: { type: string }
+                newPassword: { type: string, minLength: 8 }
+      responses:
+        '501':
+          description: Not implemented
+
+  /profile/me:
+    get:
+      tags: [Profile]
+      summary: Get current user information
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401':
+          description: Missing or invalid access token
+
+  /profile:
+    patch:
+      tags: [Profile]
+      summary: Update user profile
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstname: { type: string }
+                lastname: { type: string }
+                locality_id: { type: integer }
+                longitude: { type: number }
+                latitude: { type: number }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+
+  /profile/sessions:
+    get:
+      tags: [Profile]
+      summary: Get active login sessions (without refresh token values)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Session' }
+
+  /admin/users/{userId}/role:
+    patch:
+      tags: [Admin]
+      summary: Change another user's role (ADMIN only)
+      description: |
+        Updates the user's role, **deletes all `Session` rows for that user** (global logout),
+        and emits `UserUpdated` on Kafka. The target user must sign in again to obtain a JWT with the new role.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { type: string, enum: [user, admin] }
+      responses:
+        '200':
+          description: Role applied; all sessions for user revoked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '403':
+          description: Forbidden (not admin, or self-role change)
+        '404':
+          description: User not found
