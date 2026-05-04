@@ -4,8 +4,7 @@
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
   "moduleNameMapper": {
-    "^generated/prisma/client$": "<rootDir>/mocks/prisma-client.mock.ts",
-    "^generated/prisma/enums$": "<rootDir>/../generated/prisma/enums.ts"
+    "^@prisma/client$": "<rootDir>/mocks/prisma-client.mock.ts"
   },
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"

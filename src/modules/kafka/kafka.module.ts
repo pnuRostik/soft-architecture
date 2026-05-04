@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { Partitioners } from 'kafkajs';
 import { KafkaService } from './services/kafka.service';
 
 
@@ -16,6 +17,7 @@ import { KafkaService } from './services/kafka.service';
           },
           producer: {
             allowAutoTopicCreation: true,
+            createPartitioner: Partitioners.LegacyPartitioner,
           },
         },
       },

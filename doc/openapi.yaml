@@ -190,7 +190,7 @@ paths:
   /auth/reset-password-request:
     post:
       tags: [Authentication]
-      summary: Request password reset link
+      summary: Request password reset (JWT sent via dev email console log)
       requestBody:
         required: true
         content:
@@ -201,13 +201,13 @@ paths:
               properties:
                 email: { type: string, format: email }
       responses:
-        '501':
-          description: Not implemented (no reset token storage in current schema)
+        '200':
+          description: Generic response (does not reveal whether the email exists)
 
   /auth/reset-password:
     post:
       tags: [Authentication]
-      summary: Set new password via token
+      summary: Set new password using JWT from reset flow
       requestBody:
         required: true
         content:
@@ -216,11 +216,13 @@ paths:
               type: object
               required: [token, newPassword]
               properties:
-                token: { type: string }
+                token: { type: string, description: JWT from reset-password-request }
                 newPassword: { type: string, minLength: 8 }
       responses:
-        '501':
-          description: Not implemented
+        '200':
+          description: Password updated; existing refresh sessions revoked
+        '400':
+          description: Invalid or expired token
 
   /profile/me:
     get:

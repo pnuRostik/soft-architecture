@@ -1,5 +1,5 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
-import { Role } from 'generated/prisma/enums';
+import { Role } from '@prisma/client';
 import { JwtAccessPayload } from '../types/jwt-access-payload.type';
 
 @Injectable()

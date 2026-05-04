@@ -1,21 +1,12 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpException,
-  HttpStatus,
-  Post,
-  Query,
-  Req,
-  Res,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ResetPasswordRequestDto } from './dto/reset-password-request.dto';
 import { REFRESH_TOKEN_COOKIE_NAME } from './utils/client-meta.util';
 
 @Controller('auth')
@@ -91,18 +82,14 @@ export class AuthController {
   }
 
   @Post('reset-password-request')
-  resetPasswordRequest() {
-    throw new HttpException(
-      'Password reset request is not implemented for this deployment',
-      HttpStatus.NOT_IMPLEMENTED,
-    );
+  @HttpCode(HttpStatus.OK)
+  resetPasswordRequest(@Body() dto: ResetPasswordRequestDto) {
+    return this.authService.requestPasswordReset(dto.email);
   }
 
   @Post('reset-password')
-  resetPassword() {
-    throw new HttpException(
-      'Password reset is not implemented for this deployment',
-      HttpStatus.NOT_IMPLEMENTED,
-    );
+  @HttpCode(HttpStatus.OK)
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.completePasswordReset(dto);
   }
 }

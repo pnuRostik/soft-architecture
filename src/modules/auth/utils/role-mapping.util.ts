@@ -1,4 +1,4 @@
-import { Role } from 'generated/prisma/enums';
+import { Role } from '@prisma/client';
 
 export function apiRoleToPrisma(role: 'user' | 'admin'): Role {
   return role === 'admin' ? Role.ADMIN : Role.USER;

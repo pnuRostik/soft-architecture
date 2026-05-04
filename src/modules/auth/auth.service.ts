@@ -11,16 +11,19 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Request } from 'express';
+import type { SignOptions } from 'jsonwebtoken';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
-import type { Prisma } from 'generated/prisma/client';
-import { Role } from 'generated/prisma/enums';
+import { Role, type Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { JwtAccessPayload } from '../../common/types/jwt-access-payload.type';
+import { JwtPasswordResetPayload } from '../../common/types/jwt-password-reset-payload.type';
+import { EmailService } from '../email/email.service';
 import { KafkaService } from '../kafka/services/kafka.service';
 import { userRecordToKafkaPayload } from '../kafka/interfaces/user-payload.interface';
 import { ChangeUserRoleDto } from './dto/change-user-role.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { extractClientSessionMeta, readRefreshTokenFromCookie } from './utils/client-meta.util';
 import { apiRoleToPrisma, prismaRoleToApi } from './utils/role-mapping.util';
@@ -31,6 +34,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly kafkaService: KafkaService,
+    private readonly emailService: EmailService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -58,6 +62,10 @@ export class AuthService {
       throw new Error('JWT_SECRET is not configured');
     }
     return secret;
+  }
+
+  private get passwordResetExpiresIn(): string {
+    return this.configService.get<string>('JWT_PASSWORD_RESET_EXPIRES_IN')?.trim() || '1h';
   }
 
   private newRefreshTokenValue(): string {
@@ -113,6 +121,8 @@ export class AuthService {
         }),
       );
 
+      this.emailService.sendVerificationEmail(user.email, email_verification_hash);
+
       return {
         id: user.id,
         email: user.email,
@@ -148,6 +158,65 @@ export class AuthService {
     });
 
     return { message: 'Email successfully verified' };
+  }
+
+  async requestPasswordReset(email: string) {
+    const normalized = email.toLowerCase().trim();
+    const user = await this.prisma.client.user.findUnique({
+      where: { email: normalized },
+    });
+
+    if (user?.password_hash) {
+      const resetToken = await this.jwtService.signAsync(
+        { sub: user.id, purpose: 'password_reset' } satisfies JwtPasswordResetPayload,
+        {
+          secret: this.jwtSecret,
+          expiresIn: this.passwordResetExpiresIn as SignOptions['expiresIn'],
+        },
+      );
+      this.emailService.sendPasswordResetEmail(user.email, resetToken);
+    }
+
+    return {
+      message: 'If an account exists for this email, password reset instructions have been sent.',
+    };
+  }
+
+  async completePasswordReset(dto: ResetPasswordDto) {
+    let payload: JwtPasswordResetPayload;
+    try {
+      payload = await this.jwtService.verifyAsync<JwtPasswordResetPayload>(dto.token.trim(), {
+        secret: this.jwtSecret,
+      });
+    } catch {
+      throw new BadRequestException('Invalid or expired password reset token');
+    }
+
+    if (payload.purpose !== 'password_reset') {
+      throw new BadRequestException('Invalid or expired password reset token');
+    }
+
+    const userId = Number(payload.sub);
+    if (!Number.isInteger(userId) || userId < 1) {
+      throw new BadRequestException('Invalid or expired password reset token');
+    }
+
+    const user = await this.prisma.client.user.findUnique({ where: { id: userId } });
+    if (!user?.password_hash) {
+      throw new BadRequestException('Invalid or expired password reset token');
+    }
+
+    const password_hash = await bcrypt.hash(dto.newPassword, 12);
+
+    await this.prisma.client.$transaction([
+      this.prisma.client.session.deleteMany({ where: { user_id: user.id } }),
+      this.prisma.client.user.update({
+        where: { id: user.id },
+        data: { password_hash },
+      }),
+    ]);
+
+    return { message: 'Password has been updated. Please log in again.' };
   }
 
   async login(dto: LoginDto, req: Request) {

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import { AuthGuard } from '../../common/guards/auth.guard';
+import { EmailModule } from '../email/email.module';
 import { KafkaModule } from '../kafka/kafka.module';
 import { AdminController } from './admin.controller';
 import { AuthController } from './auth.controller';
@@ -8,7 +9,7 @@ import { AuthService } from './auth.service';
 import { ProfileController } from './profile.controller';
 
 @Module({
-  imports: [KafkaModule],
+  imports: [KafkaModule, EmailModule],
   controllers: [AuthController, ProfileController, AdminController],
   providers: [AuthService, AuthGuard, AdminGuard],
   exports: [AuthService],

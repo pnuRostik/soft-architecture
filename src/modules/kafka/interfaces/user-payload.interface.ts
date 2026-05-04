@@ -1,4 +1,4 @@
-import { Role } from 'generated/prisma/enums';
+import { Role } from '@prisma/client';
 
 /** Outbound Kafka user shape aligned with AsyncAPI `UserPayload` (firstname / lowercase role). */
 export type KafkaUserEventPayload = {

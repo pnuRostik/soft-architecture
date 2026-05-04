@@ -1,6 +1,11 @@
 /**
- * Minimal PrismaClient stub for Jest e2e (avoids loading ESM-heavy generated client).
+ * Minimal PrismaClient stub for Jest e2e (no DB / real engine).
  */
+export const Role = {
+  USER: 'USER' as const,
+  ADMIN: 'ADMIN' as const,
+};
+
 export class PrismaClient {
   constructor(_options?: unknown) {}
 
