@@ -50,21 +50,21 @@ services:
       timeout: 10s
       retries: 5
 
-  # identity-app:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #   container_name: iam_service
-  #   ports:
-  #     - "${APP_PORT}:3000"
-  #     - "${GRPC_PORT}:50051"
-  #   env_file:
-  #     - .env
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     kafka:
-  #       condition: service_healthy
+  identity-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: iam_service
+    ports:
+      - "${APP_PORT}:3000"
+      - "${GRPC_PORT}:50051"
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
 
 volumes:
   postgres_data:
